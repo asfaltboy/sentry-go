@@ -77,7 +77,7 @@ type usageError struct {
 	error
 }
 
-// Logger is an instance of log.Logger that is use to provide debug information about running Sentry Client
+// Logger is an instance of log.Logger that is used to provide debug information about running Sentry Client
 // can be enabled by either using Logger.SetOutput directly or with Debug client option.
 var Logger = log.New(io.Discard, "[Sentry] ", log.LstdFlags)
 
@@ -223,6 +223,9 @@ type ClientOptions struct {
 	MaxErrorDepth int
 	// Default event tags. These are overridden by tags set on a scope.
 	Tags map[string]string
+	// EnableLogs is a boolean flag to control if log envelopes will be generated and
+	// sent to Sentry via the logging API.
+	EnableLogs bool
 }
 
 // Client is the underlying processor that is used by the main API and Hub
