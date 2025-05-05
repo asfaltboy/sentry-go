@@ -35,7 +35,7 @@ func TestNewLogger(t *testing.T) {
 	tests := []struct {
 		name   string
 		config ClientOptions
-		want   StructuredLogger
+		want   Logger
 	}{
 		{
 			"disabled logs should return nooplogger",

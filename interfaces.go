@@ -100,8 +100,8 @@ func (b *Breadcrumb) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*breadcrumb)(b))
 }
 
-// StructuredLogger allows sending structured logs to sentry.
-type StructuredLogger interface {
+// Logger allows sending structured logs to sentry.
+type Logger interface {
 	Write(p []byte) (n int, err error)
 	Trace(v ...interface{})
 	Debug(v ...interface{})

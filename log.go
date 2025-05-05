@@ -12,8 +12,8 @@ import (
 // sentryLogger implements a custom logger that writes to Sentry.
 type sentryLogger struct{}
 
-// NewLogger returns a StructuredLogger that writes to Sentry if enabled, or discards otherwise.
-func NewLogger() StructuredLogger {
+// NewLogger returns a Logger that writes to Sentry if enabled, or discards otherwise.
+func NewLogger() Logger {
 	hub := CurrentHub()
 	client := hub.Client()
 	if client != nil && client.options.EnableLogs {
