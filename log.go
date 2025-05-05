@@ -1,6 +1,7 @@
 package sentry
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -8,17 +9,15 @@ import (
 	"time"
 )
 
-// sentryLogger implements a custom logger that writes to Sentry
-type sentryLogger struct {
-	hub *Hub
-}
+// sentryLogger implements a custom logger that writes to Sentry.
+type sentryLogger struct{}
 
-// NewLogger returns a SentryLogger that writes to Sentry if enabled, or discards otherwise
-func NewLogger() SentryLogger {
+// NewLogger returns a StructuredLogger that writes to Sentry if enabled, or discards otherwise.
+func NewLogger() StructuredLogger {
 	hub := CurrentHub()
 	client := hub.Client()
 	if client != nil && client.options.EnableLogs {
-		return &sentryLogger{hub: hub}
+		return &sentryLogger{}
 	}
 	return &noopLogger{} // fallback: does nothing
 }
@@ -38,8 +37,13 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 	event := NewEvent()
 	event.Timestamp = time.Now()
 	event.Type = logType
-	traceParent := l.hub.GetTraceparent()
-	traceID := traceParent[:32]
+	hub := CurrentHub()
+	traceParent := hub.GetTraceparent()
+	var traceID TraceID
+	_, err := hex.Decode(traceID[:], []byte(traceParent[:32]))
+	if err != nil {
+		return err
+	}
 	if traceParent != "" {
 		if event.Contexts == nil {
 			event.Contexts = make(map[string]Context)
@@ -62,7 +66,7 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 			} else {
 				parameters = append(parameters, a)
 			}
-		//case attribute.Builder:
+		// case attribute.Builder:
 		//	for k, v := range a {
 		//		attrs[k] = v
 		//	}
@@ -88,7 +92,7 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 	}
 
 	// handle metadata
-	client := l.hub.Client()
+	client := hub.Client()
 	if release := client.options.Release; release != "" {
 		attrs["sentry.release"] = release
 	}
@@ -99,27 +103,26 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 		attrs["sentry.server.address"] = serverAddr
 	}
 	if traceParent != "" {
-		attrs["sentry.trace.parent_span_id"] = traceParent[34:]
+		attrs["sentry.trace.parent_span_id"] = traceParent[33:]
 	}
 	if sdkIdentifier := client.sdkIdentifier; sdkIdentifier != "" {
 		attrs["sentry.sdk.name"] = sdkIdentifier
 	}
 	if sdkVersion := client.sdkVersion; sdkVersion != "" {
 		attrs["sentry.sdk.version"] = sdkVersion
-
 	}
 
 	event.Logs = []Log{
 		{
 			Timestamp:  time.Now(),
-			TraceID:    TraceID([]byte(traceID)),
+			TraceID:    traceID,
 			Level:      level,
 			Body:       message,
 			Attributes: attrs,
 		},
 	}
 
-	l.hub.CaptureEvent(event)
+	hub.CaptureEvent(event)
 	return nil
 }
 
@@ -131,16 +134,16 @@ func (l *sentryLogger) Error(v ...interface{}) { _ = l.log(LevelError, v...) }
 func (l *sentryLogger) Fatal(v ...interface{}) { _ = l.log(LevelFatal, v...); os.Exit(1) }
 func (l *sentryLogger) Panic(v ...interface{}) { _ = l.log(LevelFatal, v...); panic(fmt.Sprint(v...)) }
 
-// fallback no-op logger if Sentry is not enabled
+// fallback no-op logger if Sentry is not enabled.
 type noopLogger struct{}
 
-func (*noopLogger) Trace(v ...interface{}) {}
-func (*noopLogger) Debug(v ...interface{}) {}
-func (*noopLogger) Info(v ...interface{})  {}
-func (*noopLogger) Warn(v ...interface{})  {}
-func (*noopLogger) Error(v ...interface{}) {}
-func (*noopLogger) Fatal(v ...interface{}) { os.Exit(1) }
-func (*noopLogger) Panic(v ...interface{}) { panic("invalid setup: EnableLogs disabled") }
-func (*noopLogger) Write(p []byte) (n int, err error) {
+func (*noopLogger) Trace(_ ...interface{}) {}
+func (*noopLogger) Debug(_ ...interface{}) {}
+func (*noopLogger) Info(_ ...interface{})  {}
+func (*noopLogger) Warn(_ ...interface{})  {}
+func (*noopLogger) Error(_ ...interface{}) {}
+func (*noopLogger) Fatal(_ ...interface{}) { os.Exit(1) }
+func (*noopLogger) Panic(_ ...interface{}) { panic("invalid setup: EnableLogs disabled") }
+func (*noopLogger) Write(_ []byte) (n int, err error) {
 	return 0, errors.New("invalid setup: EnableLogs disabled")
 }

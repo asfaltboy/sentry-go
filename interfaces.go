@@ -100,8 +100,8 @@ func (b *Breadcrumb) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*breadcrumb)(b))
 }
 
-// SentryLogger allows sending structured logs to sentry.
-type SentryLogger interface {
+// StructuredLogger allows sending structured logs to sentry.
+type StructuredLogger interface {
 	Write(p []byte) (n int, err error)
 	Trace(v ...interface{})
 	Debug(v ...interface{})
@@ -576,7 +576,7 @@ type Log struct {
 	Attributes map[string]any `json:"attributes,omitempty"`
 }
 
-// Attribute is a log attribute
+// Attribute is a log attribute.
 type Attribute struct {
 	Value string `json:"value"`
 	Type  string `json:"type"`
