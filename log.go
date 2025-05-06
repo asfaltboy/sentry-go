@@ -1,6 +1,7 @@
 package sentry
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -10,14 +11,21 @@ import (
 )
 
 // sentryLogger implements a custom logger that writes to Sentry.
-type sentryLogger struct{}
+type sentryLogger struct {
+	hub *Hub
+}
 
 // NewLogger returns a Logger that writes to Sentry if enabled, or discards otherwise.
-func NewLogger() Logger {
-	hub := CurrentHub()
+func NewLogger(ctx context.Context) Logger {
+	var hub *Hub
+	hub = GetHubFromContext(ctx)
+	if hub == nil {
+		hub = CurrentHub()
+	}
+
 	client := hub.Client()
 	if client != nil && client.options.EnableLogs {
-		return &sentryLogger{}
+		return &sentryLogger{hub}
 	}
 	return &noopLogger{} // fallback: does nothing
 }
@@ -37,8 +45,7 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 	event := NewEvent()
 	event.Timestamp = time.Now()
 	event.Type = logType
-	hub := CurrentHub()
-	traceParent := hub.GetTraceparent()
+	traceParent := l.hub.GetTraceparent()
 	var traceID TraceID
 	_, err := hex.Decode(traceID[:], []byte(traceParent[:32]))
 	if err != nil {
@@ -92,7 +99,7 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 	}
 
 	// handle metadata
-	client := hub.Client()
+	client := l.hub.Client()
 	if release := client.options.Release; release != "" {
 		attrs["sentry.release"] = release
 	}
@@ -122,7 +129,7 @@ func (l *sentryLogger) log(level Level, args ...interface{}) error {
 		},
 	}
 
-	hub.CaptureEvent(event)
+	l.hub.CaptureEvent(event)
 	return nil
 }
 

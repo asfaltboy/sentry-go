@@ -1,6 +1,7 @@
 package sentry
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,6 +12,15 @@ const (
 	LogTraceID = "d49d9bf66f13450b81f65bc51cf49c03"
 	LogSpanID  = "a9f442f9330b4e09"
 )
+
+var attrs = map[string]any{
+	"sentry.release":              "v1.2.3",
+	"sentry.environment":          "testing",
+	"sentry.server.address":       "test-server",
+	"sentry.trace.parent_span_id": LogSpanID,
+	"sentry.sdk.name":             "sentry.go",
+	"sentry.sdk.version":          "0.10.0",
+}
 
 func setupMockEvent() *MockTransport {
 	mockTransport := &MockTransport{}
@@ -31,6 +41,7 @@ func setupMockEvent() *MockTransport {
 
 	return mockTransport
 }
+
 func TestNewLogger(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -43,9 +54,9 @@ func TestNewLogger(t *testing.T) {
 			&noopLogger{},
 		},
 		{
-			"enabled logs should return a new logger instance",
+			"enabled logs should return a new logger instance with current hub",
 			ClientOptions{EnableLogs: true},
-			&sentryLogger{},
+			&sentryLogger{CurrentHub()},
 		},
 	}
 	for _, tt := range tests {
@@ -54,7 +65,7 @@ func TestNewLogger(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cannot initialize sentry client: %e", err)
 			}
-			got := NewLogger()
+			got := NewLogger(context.Background())
 			assertEqual(t, got, tt.want)
 		})
 	}
@@ -63,14 +74,6 @@ func TestNewLogger(t *testing.T) {
 func Test_sentryLogger_log(t *testing.T) {
 	mockTransport := setupMockEvent()
 
-	attrs := map[string]any{
-		"sentry.release":              "v1.2.3",
-		"sentry.environment":          "testing",
-		"sentry.server.address":       "test-server",
-		"sentry.trace.parent_span_id": LogSpanID,
-		"sentry.sdk.name":             "sentry.go",
-		"sentry.sdk.version":          "0.10.0",
-	}
 	tests := []struct {
 		name       string
 		logFunc    func(l *sentryLogger, msg any)
@@ -176,7 +179,9 @@ func Test_sentryLogger_log(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := &sentryLogger{}
+			l := &sentryLogger{
+				CurrentHub(),
+			}
 			tt.logFunc(l, tt.args)
 
 			opts := cmp.Options{
@@ -208,7 +213,9 @@ func Test_sentryLogger_Panic(t *testing.T) {
 			}
 		}()
 
-		l := &sentryLogger{}
+		l := &sentryLogger{
+			CurrentHub(),
+		}
 		l.Panic("panic message") // This should panic
 	})
 }
@@ -216,19 +223,9 @@ func Test_sentryLogger_Panic(t *testing.T) {
 func Test_sentryLogger_log_Format(t *testing.T) {
 	mockTransport := setupMockEvent()
 
-	attrs := map[string]any{
-		"sentry.release":              "v1.2.3",
-		"sentry.environment":          "testing",
-		"sentry.server.address":       "test-server",
-		"sentry.trace.parent_span_id": LogSpanID,
-		"sentry.sdk.name":             "sentry.go",
-		"sentry.sdk.version":          "0.10.0",
-		"sentry.message.template":     Attribute{Value: "param matching: %v and %v", Type: "string"},
-		"sentry.message.parameters.0": Attribute{Value: "param1", Type: "string"},
-		"sentry.message.parameters.1": Attribute{Value: "param2", Type: "string"},
+	l := &sentryLogger{
+		CurrentHub(),
 	}
-
-	l := &sentryLogger{}
 	l.Info("param matching: %v and %v", "param1", "param2")
 
 	wantLogs := []Log{
@@ -259,15 +256,6 @@ func Test_sentryLogger_log_Format(t *testing.T) {
 func Test_sentryLogger_Write(t *testing.T) {
 	mockTransport := setupMockEvent()
 
-	attrs := map[string]any{
-		"sentry.release":              "v1.2.3",
-		"sentry.environment":          "testing",
-		"sentry.server.address":       "test-server",
-		"sentry.trace.parent_span_id": LogSpanID,
-		"sentry.sdk.name":             "sentry.go",
-		"sentry.sdk.version":          "0.10.0",
-	}
-
 	input := []byte("message from writer\n")
 	wantLogs := []Log{
 		{
@@ -278,7 +266,9 @@ func Test_sentryLogger_Write(t *testing.T) {
 		},
 	}
 
-	l := &sentryLogger{}
+	l := &sentryLogger{
+		CurrentHub(),
+	}
 	n, err := l.Write(input)
 
 	if err != nil {
